@@ -1,9 +1,9 @@
 package com.mystictreegames.pagecurl;
 
-import com.mystictreegames.pagecurl.R;
-
 import android.app.Activity;
 import android.content.pm.ActivityInfo;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
 
 /**
@@ -19,6 +19,14 @@ public class StandaloneExample extends Activity {
     public void onCreate(Bundle savedInstanceState) {
     	super.onCreate(savedInstanceState);
     	this.setContentView(R.layout.standalone_example);
+    	PageCurlView view = (PageCurlView) findViewById(R.id.dcgpagecurlPageCurlView1);
+    	Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.page1);
+    	Bitmap bitmap2 = BitmapFactory.decodeResource(getResources(), R.drawable.page2);
+    	view.addPage(bitmap);
+    	view.addPage(bitmap2);
+    	view.addPage(bitmap);
+    	view.addPage(bitmap2);
+    	view.SetCurlSpeed(Integer.MAX_VALUE / 9);
     }
     
     @Override
