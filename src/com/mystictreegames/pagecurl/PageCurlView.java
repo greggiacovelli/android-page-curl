@@ -1,9 +1,8 @@
 package com.mystictreegames.pagecurl;
 
-import java.util.ArrayList;
-
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.database.DataSetObserver;
 import android.graphics.Bitmap;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
@@ -17,24 +16,29 @@ import android.graphics.Shader;
 import android.graphics.Shader.TileMode;
 import android.os.Handler;
 import android.os.Message;
+import android.support.v4.view.PagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.text.TextPaint;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
-import android.view.View.MeasureSpec;
+import android.view.View;
 import android.view.WindowManager;
 
 /**
  * 
  * @author Moritz 'Moss' Wundke (b.thax.dcg@gmail.com)
- * 
+ * @author Greg Giacovelli (greg.giacovelli@gmail.com)
  */
 public class PageCurlView extends ViewPager {
+	
+	private static final int FRONT = 0;
+	private static final int BACK = 1;
+	private static final int REVIELED = 2;
 
 	/** Our Log tag */
-	private final static String TAG = "PageCurlView";
+	private final static String TAG = PageCurlView.class.getSimpleName();
 
 	// Debug text paint stuff
 	private Paint mTextPaint;
@@ -100,12 +104,8 @@ public class PageCurlView extends ViewPager {
 	/** Enable input after the next draw event */
 	private boolean bEnableInputAfterDraw = false;
 
-	/** LAGACY The current foreground */
-	private Bitmap mForeground;
-
-	/** LAGACY The current background */
-	private Bitmap mBackground;
-
+	private final Bitmap[] mCachedViews;
+	
 	private final Rect mScaleRect;
 
 	private final Paint mPaint;
@@ -113,6 +113,8 @@ public class PageCurlView extends ViewPager {
 	private final boolean mPageNumberEnabled;
 
 	private final Matrix mBackPageMatrix;
+	
+	private DataSetObserver mObserver;
 
 
 	/**
@@ -128,7 +130,6 @@ public class PageCurlView extends ViewPager {
 
 		@Override
 		public String toString() {
-			// TODO Auto-generated method stub
 			return "(" + this.x + "," + this.y + ")";
 		}
 
@@ -236,6 +237,7 @@ public class PageCurlView extends ViewPager {
 		mPaint = new Paint();
 		mScaleRect = new Rect();
 		mBackPageMatrix = new Matrix();
+		mCachedViews = new Bitmap[3];
 		// Get the data from the XML AttributeSet
 		{
 			TypedArray a = context.getTheme().obtainStyledAttributes(attrs,
@@ -508,20 +510,21 @@ public class PageCurlView extends ViewPager {
 	protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
 		int width = 0;
 		int height = 0;
-		if (mBackground != null) {
-			height = Math.max(mBackground.getHeight(), height);
-			width = Math.max(mBackground.getWidth(), width);
-		}
-		if (mForeground != null) {
-			height = Math.max(mForeground.getHeight(), height);
-			width = Math.max(mForeground.getWidth(), width);
+		for (int i=0,c=Math.min(getChildCount(), 3); i < c; i++) {
+			View v = getChildAt(i);
+			v.measure(widthMeasureSpec, heightMeasureSpec);
+			height = Math.max(v.getMeasuredHeight(), height);
+			width = Math.max(v.getMeasuredWidth(), width);
 		}
 		width = getMeasure(widthMeasureSpec, width);
 		height = getMeasure(heightMeasureSpec, height);
 		setMeasuredDimension(width, height);
+		setupViews();
 	}
+	
 
 	private DisplayMetrics dm;
+
 	private int getMeasure(int measureSpec, int maxDimen) {
 		int specMode = MeasureSpec.getMode(measureSpec);
 		int specSize = MeasureSpec.getSize(measureSpec);
@@ -553,7 +556,7 @@ public class PageCurlView extends ViewPager {
 	 */
 	@Override
 	public boolean onTouchEvent(MotionEvent event) {
-		if (mForeground == null || mBackground == null) {
+		if (mCachedViews[FRONT] == null || mCachedViews[BACK] == null ||  mCachedViews[REVIELED] == null) {
 			return false;
 		}
 		if (!bBlockTouchInput) {
@@ -709,18 +712,12 @@ public class PageCurlView extends ViewPager {
 	 * Do the page curl depending on the methods we are using
 	 */
 	private void doPageCurl() {
-		if (bFlipping) {
-			if (isCurlModeDynamic())
-				doDynamicCurl();
-			else
-				doSimpleCurl();
-
+		if (isCurlModeDynamic()) {
+			doDynamicCurl();
 		} else {
-			if (isCurlModeDynamic())
-				doDynamicCurl();
-			else
-				doSimpleCurl();
+			doSimpleCurl();
 		}
+
 	}
 
 	/**
@@ -833,7 +830,7 @@ public class PageCurlView extends ViewPager {
 			backIndex = 0;
 		}
 		setCurrentItem(foreIndex, false);
-		setViews(foreIndex, backIndex);
+		setupViews();
 	}
 
 	/**
@@ -846,7 +843,7 @@ public class PageCurlView extends ViewPager {
 			foreIndex = getAdapter().getCount() - 1;
 		}
 		setCurrentItem(foreIndex, false);
-		setViews(foreIndex, backIndex);
+		setupViews();
 	}
 
 	/**
@@ -857,15 +854,59 @@ public class PageCurlView extends ViewPager {
 	 * @param background
 	 *            - Background view index
 	 */
-	private void setViews(int foreground, int background) {
-		Canvas canvas = new  Canvas(mForeground);
-		getChildAt(0).draw(canvas);
-		canvas = new Canvas(mBackground);
-		getChildAt(1).draw(canvas);
-		Shader shader = new BitmapShader(mBackground, TileMode.CLAMP, TileMode.CLAMP);
-		mCurlEdgePaint.setShader(shader);
+	private void setupViews() {
+		initViews();
+		if (mCachedViews[FRONT] != null) {
+			Canvas canvas = new  Canvas(mCachedViews[FRONT]);
+			getChildAt(0).draw(canvas);
+			canvas = new Canvas(mCachedViews[REVIELED]);
+			getChildAt(1).draw(canvas);
+			Shader shader = new BitmapShader(mCachedViews[BACK], TileMode.CLAMP, TileMode.CLAMP);
+			mCurlEdgePaint.setShader(shader);
+		}
 	}
 	
+	private void initViews() {
+		if (getMeasuredHeight() == 0 || getMeasuredWidth() == 0) {
+			return;
+		}
+		if (mCachedViews[FRONT] == null || mCachedViews[FRONT].getWidth() != getMeasuredWidth() || mCachedViews[FRONT].getHeight() != getMeasuredHeight()) {
+			for (int i=0,l=mCachedViews.length; i < l ; i++) {
+				if (mCachedViews[i] != null) {
+					mCachedViews[i].recycle();
+				}
+				mCachedViews[i] = Bitmap.createBitmap(getMeasuredWidth(), getMeasuredHeight(), Bitmap.Config.ARGB_8888);
+			}
+		}
+	}
+
+	@Override
+	public void setAdapter(PagerAdapter arg0) {
+		PagerAdapter adapterOriginal = getAdapter();
+		super.setAdapter(arg0);
+		if (arg0 != null && arg0 != adapterOriginal) {
+			mObserver = new DataSetObserver() {
+				@Override
+				public void onChanged() {
+					removeAllViews();
+					PagerAdapter adapter = getAdapter();
+					adapter.startUpdate(PageCurlView.this);
+					adapter.instantiateItem(PageCurlView.this, getCurrentItem());
+					adapter.instantiateItem(PageCurlView.this, getCurrentItem() + 1);
+					adapter.instantiateItem(PageCurlView.this, getCurrentItem() + 2);
+					adapter.finishUpdate(PageCurlView.this);
+					setupViews();
+				}
+			};
+			setCurrentItem(0, false);
+		} else if (arg0 == null && mObserver != null) {
+			mObserver.onInvalidated();
+			mObserver = null;
+		}
+		if (mObserver != null) {
+			mObserver.onChanged();
+		}
+	}
 	// ---------------------------------------------------------------
 	// Drawing methods
 	// ---------------------------------------------------------------
@@ -902,11 +943,11 @@ public class PageCurlView extends ViewPager {
 		Paint paint = mPaint;
 
 		// Draw our elements
-		if (mForeground != null)
+		if (mCachedViews[FRONT] != null)
 			drawForeground(canvas, rect, paint);
-		if (mBackground != null)
+		if (mCachedViews[REVIELED] != null)
 			drawBackground(canvas, rect, paint);
-		if (mForeground != null)
+		if (mCachedViews[BACK] != null)
 			drawCurlEdge(canvas);
 
 		// Draw any debug info once we are done
@@ -944,7 +985,7 @@ public class PageCurlView extends ViewPager {
 	 * @param paint
 	 */
 	private void drawForeground(Canvas canvas, Rect rect, Paint paint) {
-		canvas.drawBitmap(mForeground, null, rect, paint);
+		canvas.drawBitmap(mCachedViews[FRONT], null, rect, paint);
 
 		// Draw the page number (first page is 1 in real life :D
 		// there is no page number 0 hehe)
@@ -979,7 +1020,7 @@ public class PageCurlView extends ViewPager {
 		// Save current canvas so we do not mess it up
 		canvas.save();
 		canvas.clipPath(mask);
-		canvas.drawBitmap(mBackground, null, rect, paint);
+		canvas.drawBitmap(mCachedViews[REVIELED], null, rect, paint);
 
 		// Draw the page number (first page is 1 in real life :D
 		// there is no page number 0 hehe)
