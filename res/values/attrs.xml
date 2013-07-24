@@ -16,6 +16,7 @@
             <enum name="simple" value="0" />
             <enum name="dynamic" value="1" />
         </attr>
+        <attr name="pageNumberEnabled" format="boolean"/>
     </declare-styleable>
 
 </resources>

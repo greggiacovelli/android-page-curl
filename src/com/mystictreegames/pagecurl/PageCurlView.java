@@ -104,15 +104,17 @@ public class PageCurlView extends View {
 
 	/** LAGACY Current selected page */
 	private int mIndex = 0;
-	
+
 	private final Rect mScaleRect;
-	
+
 	private final Paint mPaint;
+
+	private final boolean mPageNumberEnabled;
 
 	/**
 	 * Inner class used to represent a 2D point.
 	 */
-	private class Vector2D {
+	private static class Vector2D {
 		public float x, y;
 
 		public Vector2D(float x, float y) {
@@ -229,7 +231,6 @@ public class PageCurlView extends View {
 		super(context, attrs, def);
 		mPaint = new Paint();
 		mScaleRect = new Rect();
-		init(context);
 
 		// Get the data from the XML AttributeSet
 		{
@@ -247,16 +248,19 @@ public class PageCurlView extends View {
 					R.styleable.PageCurlView_initialEdgeOffset,
 					mInitialEdgeOffset);
 			mCurlMode = a.getInt(R.styleable.PageCurlView_curlMode, mCurlMode);
-
-			Log.i(TAG, "mCurlSpeed: " + mCurlSpeed);
-			Log.i(TAG, "mUpdateRate: " + mUpdateRate);
-			Log.i(TAG, "mInitialEdgeOffset: " + mInitialEdgeOffset);
-			Log.i(TAG, "mCurlMode: " + mCurlMode);
+			mPageNumberEnabled = a.getBoolean(
+					R.styleable.PageCurlView_pageCurlViewStyle, false);
+			if (BuildConfig.DEBUG) {
+				Log.i(TAG, "mCurlSpeed: " + mCurlSpeed);
+				Log.i(TAG, "mUpdateRate: " + mUpdateRate);
+				Log.i(TAG, "mInitialEdgeOffset: " + mInitialEdgeOffset);
+				Log.i(TAG, "mCurlMode: " + mCurlMode);
+			}
 
 			// recycle object (so it can be used by others)
 			a.recycle();
 		}
-
+		init(context);
 		ResetClipEdge();
 	}
 
@@ -265,16 +269,18 @@ public class PageCurlView extends View {
 	 */
 	private final void init(Context context) {
 		// Foreground text paint
-		mTextPaint = new Paint();
-		mTextPaint.setAntiAlias(true);
-		mTextPaint.setTextSize(16);
-		mTextPaint.setColor(0xFF000000);
+		if (mPageNumberEnabled) {
+			mTextPaint = new Paint();
+			mTextPaint.setAntiAlias(true);
+			mTextPaint.setTextSize(16);
+			mTextPaint.setColor(0xFF000000);
 
-		// The shadow
-		mTextPaintShadow = new TextPaint();
-		mTextPaintShadow.setAntiAlias(true);
-		mTextPaintShadow.setTextSize(16);
-		mTextPaintShadow.setColor(0x00000000);
+			// The shadow
+			mTextPaintShadow = new TextPaint();
+			mTextPaintShadow.setAntiAlias(true);
+			mTextPaintShadow.setTextSize(16);
+			mTextPaintShadow.setColor(0x00000000);
+		}
 
 		// Base padding
 		setPadding(3, 3, 3, 3);
@@ -292,23 +298,16 @@ public class PageCurlView extends View {
 
 		// Create our edge paint
 		mCurlEdgePaint = new Paint();
+		// TODO(greg) Set this to a bitmap shader of the next page
 		mCurlEdgePaint.setColor(Color.WHITE);
 		mCurlEdgePaint.setAntiAlias(true);
 		mCurlEdgePaint.setStyle(Paint.Style.FILL);
 		mCurlEdgePaint.setShadowLayer(10, -5, 5, 0x99000000);
 
-		// Set the default props, those come from an XML :D
-		mCurlSpeed = 30;
-		mUpdateRate = 33;
-		mInitialEdgeOffset = 20;
-		mCurlMode = 1;
-
-		// LEGACY PAGE HANDLING!
-
 		// Create pages
 		mPages = new ArrayList<Bitmap>();
 	}
-	
+
 	public PageCurlView addPage(Bitmap bitmap) {
 		if (mPages.isEmpty()) {
 			mForeground = bitmap;
@@ -531,8 +530,8 @@ public class PageCurlView extends View {
 		height = getMeasure(heightMeasureSpec, height);
 		setMeasuredDimension(width, height);
 	}
-	
-	int getMeasure(int measureSpec, int maxDimen) {
+
+	private int getMeasure(int measureSpec, int maxDimen) {
 		int specMode = MeasureSpec.getMode(measureSpec);
 		int specSize = MeasureSpec.getSize(measureSpec);
 		if (specMode == MeasureSpec.EXACTLY) {
@@ -545,23 +544,12 @@ public class PageCurlView extends View {
 		return maxDimen;
 	}
 
-	/**
-	 * Render the text
-	 * 
-	 * @see android.view.View#onDraw(android.graphics.Canvas)
+
+	/* ---------------------------------------------------------------
+	 * Curling. This handles touch events, the actual curling
+	 * implementations and so on.
+	 * ----------------------------------------------------------------
 	 */
-	// @Override
-	// protected void onDraw(Canvas canvas) {
-	// super.onDraw(canvas);
-	// canvas.drawText(mText, getPaddingLeft(), getPaddingTop() - mAscent,
-	// mTextPaint);
-	// }
-
-	// ---------------------------------------------------------------
-	// Curling. This handles touch events, the actual curling
-	// implementations and so on.
-	// ---------------------------------------------------------------
-
 	@Override
 	public boolean onTouchEvent(MotionEvent event) {
 		if (mForeground == null || mBackground == null) {
@@ -910,11 +898,11 @@ public class PageCurlView extends View {
 
 		// Draw our elements
 		if (mForeground != null)
-		drawForeground(canvas, rect, paint);
+			drawForeground(canvas, rect, paint);
 		if (mBackground != null)
-		drawBackground(canvas, rect, paint);
+			drawBackground(canvas, rect, paint);
 		if (mForeground != null)
-		drawCurlEdge(canvas);
+			drawCurlEdge(canvas);
 
 		// Draw any debug info once we are done
 		if (bEnableDebugMode)
@@ -1027,6 +1015,9 @@ public class PageCurlView extends View {
 	 * @param pageNum
 	 */
 	private void drawPageNum(Canvas canvas, int pageNum) {
+		if (!mPageNumberEnabled) {
+			return;
+		}
 		mTextPaint.setColor(Color.WHITE);
 		String pageNumText = "- " + pageNum + " -";
 		drawCentered(canvas, pageNumText,
