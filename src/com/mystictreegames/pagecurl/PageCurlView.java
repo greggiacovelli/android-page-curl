@@ -17,13 +17,14 @@ import android.graphics.Shader.TileMode;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v4.view.PagerAdapter;
-import android.support.v4.view.ViewPager;
 import android.text.TextPaint;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.View.MeasureSpec;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 
 /**
@@ -31,7 +32,7 @@ import android.view.WindowManager;
  * @author Moritz 'Moss' Wundke (b.thax.dcg@gmail.com)
  * @author Greg Giacovelli (greg.giacovelli@gmail.com)
  */
-public class PageCurlView extends ViewPager {
+public class PageCurlView extends ViewGroup {
 	
 	private static final int FRONT = 0;
 	private static final int BACK = 1;
@@ -116,7 +117,11 @@ public class PageCurlView extends ViewPager {
 	
 	private DataSetObserver mObserver;
 
+	private int mCurrentItem;
+	
+	private PagerAdapter mAdapter;
 
+	
 	/**
 	 * Inner class used to represent a 2D point.
 	 */
@@ -547,6 +552,11 @@ public class PageCurlView extends ViewPager {
 		}
 		return maxDimen;
 	}
+	
+	@Override
+	public boolean onInterceptTouchEvent(MotionEvent ev) {
+		return true;
+	}
 
 
 	/* ---------------------------------------------------------------
@@ -880,10 +890,9 @@ public class PageCurlView extends ViewPager {
 		}
 	}
 
-	@Override
 	public void setAdapter(PagerAdapter arg0) {
 		PagerAdapter adapterOriginal = getAdapter();
-		super.setAdapter(arg0);
+		mAdapter = arg0;
 		if (arg0 != null && arg0 != adapterOriginal) {
 			mObserver = new DataSetObserver() {
 				@Override
@@ -910,6 +919,10 @@ public class PageCurlView extends ViewPager {
 	// ---------------------------------------------------------------
 	// Drawing methods
 	// ---------------------------------------------------------------
+
+	public PagerAdapter getAdapter() {
+		return mAdapter;
+	}
 
 	@Override
 	protected void onDraw(Canvas canvas) {
@@ -970,9 +983,9 @@ public class PageCurlView extends ViewPager {
 	 * @param canvas
 	 */
 	protected void onFirstDrawEvent(Canvas canvas) {
-
+		
 		mFlipRadius = getWidth();
-
+		bEnableInputAfterDraw = true;
 		ResetClipEdge();
 		doPageCurl();
 	}
@@ -1180,6 +1193,28 @@ public class PageCurlView extends ViewPager {
 		paint.setColor(color);
 		canvas.drawPoint(X, Y, paint);
 		return posY + 15;
+	}
+
+	public int getCurrentItem() {
+		return mCurrentItem;
+	}
+
+	public void setCurrentItem(int currentItem, boolean smooth) {
+		mCurrentItem = currentItem;
+		if (smooth) {
+			// TODO DO ANIMATION, then invalidate
+		} else {
+			invalidate();
+		}
+	}
+
+	@Override
+	protected void onLayout(boolean changed, int l, int t, int r, int b) {
+		if (changed) {
+			for (int i=0,length=getChildCount(); i < length; i++) {
+				getChildAt(i).layout(l, t, r, b);
+			}
+		}
 	}
 
 }
