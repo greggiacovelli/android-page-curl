@@ -17,12 +17,13 @@ import android.graphics.Shader;
 import android.graphics.Shader.TileMode;
 import android.os.Handler;
 import android.os.Message;
+import android.support.v4.view.ViewPager;
 import android.text.TextPaint;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
-import android.view.View;
+import android.view.View.MeasureSpec;
 import android.view.WindowManager;
 
 /**
@@ -30,7 +31,7 @@ import android.view.WindowManager;
  * @author Moritz 'Moss' Wundke (b.thax.dcg@gmail.com)
  * 
  */
-public class PageCurlView extends View {
+public class PageCurlView extends ViewPager {
 
 	/** Our Log tag */
 	private final static String TAG = "PageCurlView";
@@ -104,12 +105,6 @@ public class PageCurlView extends View {
 
 	/** LAGACY The current background */
 	private Bitmap mBackground;
-
-	/** LAGACY List of pages, this is just temporal */
-	private ArrayList<Bitmap> mPages;
-
-	/** LAGACY Current selected page */
-	private int mIndex = 0;
 
 	private final Rect mScaleRect;
 
@@ -237,7 +232,7 @@ public class PageCurlView extends View {
 	}
 
 	public PageCurlView(Context context, AttributeSet attrs, int def) {
-		super(context, attrs, def);
+		super(context, attrs);
 		mPaint = new Paint();
 		mScaleRect = new Rect();
 		mBackPageMatrix = new Matrix();
@@ -312,18 +307,6 @@ public class PageCurlView extends View {
 		mCurlEdgePaint.setStyle(Paint.Style.FILL);
 		mCurlEdgePaint.setShadowLayer(10, -5, 5, 0x99000000);
 
-		mPages = new ArrayList<Bitmap>();
-	}
-
-	public PageCurlView addPage(Bitmap bitmap) {
-		if (mPages.isEmpty()) {
-			mForeground = bitmap;
-		}
-		mPages.add(bitmap);
-		if (mPages.size() == 2) {
-			mBackground = bitmap;
-		}
-		return this;
 	}
 
 	/**
@@ -841,15 +824,15 @@ public class PageCurlView extends View {
 	 * Swap to next view
 	 */
 	private void nextView() {
-		int foreIndex = mIndex + 1;
-		if (foreIndex >= mPages.size()) {
+		int foreIndex = getCurrentItem() + 1;
+		if (foreIndex >= getAdapter().getCount()) {
 			foreIndex = 0;
 		}
 		int backIndex = foreIndex + 1;
-		if (backIndex >= mPages.size()) {
+		if (backIndex >= getAdapter().getCount()) {
 			backIndex = 0;
 		}
-		mIndex = foreIndex;
+		setCurrentItem(foreIndex, false);
 		setViews(foreIndex, backIndex);
 	}
 
@@ -857,12 +840,12 @@ public class PageCurlView extends View {
 	 * Swap to previous view
 	 */
 	private void previousView() {
-		int backIndex = mIndex;
+		int backIndex = getCurrentItem();
 		int foreIndex = backIndex - 1;
 		if (foreIndex < 0) {
-			foreIndex = mPages.size() - 1;
+			foreIndex = getAdapter().getCount() - 1;
 		}
-		mIndex = foreIndex;
+		setCurrentItem(foreIndex, false);
 		setViews(foreIndex, backIndex);
 	}
 
@@ -875,12 +858,14 @@ public class PageCurlView extends View {
 	 *            - Background view index
 	 */
 	private void setViews(int foreground, int background) {
-		mForeground = mPages.get(foreground);
-		mBackground = mPages.get(background);
+		Canvas canvas = new  Canvas(mForeground);
+		getChildAt(0).draw(canvas);
+		canvas = new Canvas(mBackground);
+		getChildAt(1).draw(canvas);
 		Shader shader = new BitmapShader(mBackground, TileMode.CLAMP, TileMode.CLAMP);
 		mCurlEdgePaint.setShader(shader);
 	}
-
+	
 	// ---------------------------------------------------------------
 	// Drawing methods
 	// ---------------------------------------------------------------
@@ -963,7 +948,7 @@ public class PageCurlView extends View {
 
 		// Draw the page number (first page is 1 in real life :D
 		// there is no page number 0 hehe)
-		drawPageNum(canvas, mIndex);
+		drawPageNum(canvas, getCurrentItem());
 	}
 
 	/**
@@ -998,7 +983,7 @@ public class PageCurlView extends View {
 
 		// Draw the page number (first page is 1 in real life :D
 		// there is no page number 0 hehe)
-		drawPageNum(canvas, mIndex);
+		drawPageNum(canvas, getCurrentItem());
 
 		canvas.restore();
 	}
