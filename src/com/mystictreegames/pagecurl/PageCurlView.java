@@ -5,19 +5,25 @@ import java.util.ArrayList;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
+import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Paint.Style;
 import android.graphics.Path;
 import android.graphics.Rect;
+import android.graphics.Shader;
+import android.graphics.Shader.TileMode;
 import android.os.Handler;
 import android.os.Message;
 import android.text.TextPaint;
 import android.util.AttributeSet;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.WindowManager;
 
 /**
  * 
@@ -110,6 +116,9 @@ public class PageCurlView extends View {
 	private final Paint mPaint;
 
 	private final boolean mPageNumberEnabled;
+
+	private final Matrix mBackPageMatrix;
+
 
 	/**
 	 * Inner class used to represent a 2D point.
@@ -231,7 +240,7 @@ public class PageCurlView extends View {
 		super(context, attrs, def);
 		mPaint = new Paint();
 		mScaleRect = new Rect();
-
+		mBackPageMatrix = new Matrix();
 		// Get the data from the XML AttributeSet
 		{
 			TypedArray a = context.getTheme().obtainStyledAttributes(attrs,
@@ -298,13 +307,11 @@ public class PageCurlView extends View {
 
 		// Create our edge paint
 		mCurlEdgePaint = new Paint();
-		// TODO(greg) Set this to a bitmap shader of the next page
 		mCurlEdgePaint.setColor(Color.WHITE);
 		mCurlEdgePaint.setAntiAlias(true);
 		mCurlEdgePaint.setStyle(Paint.Style.FILL);
 		mCurlEdgePaint.setShadowLayer(10, -5, 5, 0x99000000);
 
-		// Create pages
 		mPages = new ArrayList<Bitmap>();
 	}
 
@@ -531,15 +538,26 @@ public class PageCurlView extends View {
 		setMeasuredDimension(width, height);
 	}
 
+	private DisplayMetrics dm;
 	private int getMeasure(int measureSpec, int maxDimen) {
 		int specMode = MeasureSpec.getMode(measureSpec);
 		int specSize = MeasureSpec.getSize(measureSpec);
-		if (specMode == MeasureSpec.EXACTLY) {
+		switch(specMode) {
+		case MeasureSpec.EXACTLY:
 			maxDimen = specSize;
-		} else if (specMode == MeasureSpec.AT_MOST) {
+			break;
+		case MeasureSpec.AT_MOST:
 			maxDimen = Math.min(maxDimen, specSize);
-		} else {
-			maxDimen = Math.max(50, maxDimen);
+			break;
+		case MeasureSpec.UNSPECIFIED:
+		default:
+			WindowManager wm = (WindowManager) getContext().getSystemService(Context.WINDOW_SERVICE);
+			if (dm == null) {
+				dm = new DisplayMetrics();
+			}
+			wm.getDefaultDisplay().getMetrics(dm);
+			maxDimen = Math.max((int)(dm.density * 50), maxDimen);
+			break;
 		}
 		return maxDimen;
 	}
@@ -859,6 +877,8 @@ public class PageCurlView extends View {
 	private void setViews(int foreground, int background) {
 		mForeground = mPages.get(foreground);
 		mBackground = mPages.get(background);
+		Shader shader = new BitmapShader(mBackground, TileMode.CLAMP, TileMode.CLAMP);
+		mCurlEdgePaint.setShader(shader);
 	}
 
 	// ---------------------------------------------------------------
@@ -1005,6 +1025,12 @@ public class PageCurlView extends View {
 	 */
 	private void drawCurlEdge(Canvas canvas) {
 		Path path = createCurlEdgePath();
+		Shader shader = mCurlEdgePaint.getShader();
+		if (shader != null) {
+			shader.getLocalMatrix(mBackPageMatrix);
+			mBackPageMatrix.preSkew(mA.x - mD.x, mA.y - mD.y);
+			shader.setLocalMatrix(mBackPageMatrix);
+		}
 		canvas.drawPath(path, mCurlEdgePaint);
 	}
 
