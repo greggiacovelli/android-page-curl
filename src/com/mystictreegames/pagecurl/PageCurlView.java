@@ -831,29 +831,14 @@ public class PageCurlView extends ViewGroup {
 	 * Swap to next view
 	 */
 	private void nextView() {
-		int foreIndex = getCurrentItem() + 1;
-		if (foreIndex >= getAdapter().getCount()) {
-			foreIndex = 0;
-		}
-		int backIndex = foreIndex + 1;
-		if (backIndex >= getAdapter().getCount()) {
-			backIndex = 0;
-		}
-		setCurrentItem(foreIndex, false);
-		setupViews();
+		setCurrentItem(getCurrentItem() + 2, false);
 	}
 
 	/**
 	 * Swap to previous view
 	 */
 	private void previousView() {
-		int backIndex = getCurrentItem();
-		int foreIndex = backIndex - 1;
-		if (foreIndex < 0) {
-			foreIndex = getAdapter().getCount() - 1;
-		}
-		setCurrentItem(foreIndex, false);
-		setupViews();
+		setCurrentItem(getCurrentItem() - 2, false);
 	}
 
 	/**
@@ -985,9 +970,9 @@ public class PageCurlView extends ViewGroup {
 	protected void onFirstDrawEvent(Canvas canvas) {
 		
 		mFlipRadius = getWidth();
-		bEnableInputAfterDraw = true;
 		ResetClipEdge();
 		doPageCurl();
+		bEnableInputAfterDraw = true;
 	}
 
 	/**
@@ -1204,6 +1189,7 @@ public class PageCurlView extends ViewGroup {
 		if (smooth) {
 			// TODO DO ANIMATION, then invalidate
 		} else {
+			mObserver.onChanged();
 			invalidate();
 		}
 	}
